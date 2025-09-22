@@ -11,3 +11,5 @@ passlib
 pyjwt
 python-multipart
 ultralytics
+apscheduler
+albumentationsx

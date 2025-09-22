@@ -2,7 +2,7 @@ from ultralytics import YOLO
 
 model = YOLO("yolo11n-cls.pt")
 dataset = {
-    "location": "/home/vbatecan/Projects/medicine-storage-system/datasets/medicine-detection-classification-3"
+    "location": "/home/vbatecan/Projects/medicine-storage-system/uploads/training"
 }
 
 
