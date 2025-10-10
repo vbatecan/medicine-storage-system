@@ -41,3 +41,12 @@ CREATE TABLE IF NOT EXISTS transaction_details
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS authentication_history
+(
+    id                 SERIAL,
+    user_id            INT REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    time_authenticated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
