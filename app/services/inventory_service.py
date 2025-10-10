@@ -27,9 +27,9 @@ class InventoryService:
         return transaction
 
     @staticmethod
-    async def add_stock(db: AsyncSession, medicine_id: int, increment: int, user_id: int):
+    async def add_stock(db: AsyncSession, medicine_name: str, increment: int, user_id: int):
         result = await db.execute(
-            select(Medicine).where(Medicine.id == medicine_id)
+            select(Medicine).where(Medicine.name == medicine_name)
         )
         medicine = result.scalar_one_or_none()
 
@@ -38,9 +38,30 @@ class InventoryService:
 
         medicine.stock += increment
         await db.commit()
-        transaction = await InventoryService.log_transaction(db, medicine_id, increment, user_id, mode='IN')
+        transaction = await InventoryService.log_transaction(db, medicine.id, increment, user_id, mode='IN')
 
-        return transaction
+        return {
+            "medicine": medicine,
+            "transaction": transaction
+        }
+
+    @staticmethod
+    async def reduce_stock(db: AsyncSession, medicine_name: str, decrement: int, user_id: int):
+        result = await db.execute(
+            select(Medicine).where(Medicine.name == medicine_name)
+        )
+        medicine = result.scalar_one_or_none()
+        if medicine is None:
+            raise ValueError("Medicine not found")
+        if medicine.stock < decrement:
+            raise ValueError("Insufficient stock")
+        medicine.stock -= decrement
+        await db.commit()
+        transaction = await InventoryService.log_transaction(db, medicine.id, decrement, user_id, mode='OUT')
+        return {
+            "medicine": medicine,
+            "transaction": transaction
+        }
 
     @staticmethod
     async def list_all(db: AsyncSession, limit: int = 100, offset: int = 0):
@@ -75,8 +96,23 @@ class InventoryService:
         if existing_medicine:
             raise ValueError("Medicine with this name already exists")
 
-        new_medicine = Medicine(name=medicine.name, description=medicine.description, stock=medicine.stock, image_path=thumbnail_path)
+        new_medicine = Medicine(name=medicine.name, description=medicine.description, stock=medicine.stock,
+                                image_path=thumbnail_path)
         db.add(new_medicine)
         await db.commit()
         await db.refresh(new_medicine)
         return new_medicine
+
+    @staticmethod
+    async def delete_medicine(db: AsyncSession, medicine_id: int):
+        result = await db.execute(
+            select(Medicine).where(Medicine.id == medicine_id)
+        )
+        medicine = result.scalar_one_or_none()
+
+        if medicine is None:
+            raise ValueError("Medicine not found")
+
+        await db.delete(medicine)
+        await db.commit()
+        return medicine
