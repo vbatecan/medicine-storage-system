@@ -1,5 +1,6 @@
 import logging
 import os
+import requests
 
 import cv2
 import fastapi
@@ -16,6 +17,8 @@ import app.database.database as database
 from app.database.schemas import RoleEnum, UserSchema
 from app.services.authentication_history_service import AuthenticationHistoryService
 from app.services.user_service import UserService
+
+cabinet_ip = "10.42.0.203"
 
 router = fastapi.APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,7 +39,7 @@ class FaceRecognitionResult(BaseModel):
     face: Face
     identity: str
     confidence: float
-    role: RoleEnum
+    role: str
     token: str
 
 
@@ -70,16 +73,19 @@ async def recognize_face(db: AsyncSession, image: np.ndarray, faces_detected: li
 
             if not combined:
                 print("No matches found")
-                logger.debug(identity, confidence)
+                logger.debug("No matches found with identity: %s and confidence: %s", identity, confidence)
                 continue
 
             highest_confidence = max(combined, key=lambda x: x[1])
             print(f"High confidence match: {highest_confidence}")
-            face_name = os.path.basename(os.path.normpath(highest_confidence[0]))
-            logger.info(f"Recognized {face_name} with confidence {highest_confidence[1]}")
+            face_name = highest_confidence[0].split(os.path.sep)[0]
+            logger.info("Recognized %s with confidence %.2f", face_name, highest_confidence[1])
 
             if highest_confidence[1] < FACE_RECOGNITION_CONF:  # Confidence threshold
+                print("Was not able to go through the minimum confidence")
                 continue
+            else:
+                print("Able to pass the confidence check.")
 
             # Get User by Face Name
             user = await UserService.get_user_by_face_name(db, face_name)
@@ -105,6 +111,8 @@ async def recognize_face(db: AsyncSession, image: np.ndarray, faces_detected: li
                     )
                 else:
                     logger.debug("Failed to create authentication history record because of unknown error.")
+            else:
+                logger.debug("No user was detected associated with this face name")
             break
 
     return face_identities
@@ -115,7 +123,7 @@ async def face_recognition(image: UploadFile, db=fastapi.Depends(database.get_db
     image_data = cv2.imdecode(
         np.frombuffer(await image.read(), np.uint8), cv2.IMREAD_COLOR
     )
-    logger.info(f"Received image: {image}")
+    logger.info("Received image: %s" % image.filename)
     faces = df.extract_faces(image_data, enforce_detection=False, detector_backend="opencv", align=True,
                              anti_spoofing=True)
     if len(faces) <= 0:
@@ -129,7 +137,7 @@ async def face_recognition(image: UploadFile, db=fastapi.Depends(database.get_db
         antispoof_score = face.get("antispoof_score", None)
 
         if not is_real:
-            logger.warning(f"Face at {(x, y, w, h)} failed anti-spoofing check with score {antispoof_score}")
+            logger.warning("Face at %s failed anti-spoofing check with score %s", (x, y, w, h), antispoof_score)
             continue
 
         faces_detected.append(
@@ -142,4 +150,5 @@ async def face_recognition(image: UploadFile, db=fastapi.Depends(database.get_db
         )
 
     recognition_results = await recognize_face(db, image_data, faces_detected)
+    requests.get(f"http://10.42.0.203/unlock", timeout=1)
     return recognition_results
